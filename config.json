@@ -1,0 +1,14 @@
+{
+
+    "crawler": {
+        "url_STF": "http://portal.stf.jus.br/processos/listarProcessos.asp?numeroUnico=",
+        "url_docs":"http://portal.stf.jus.br/processos/",
+        "chromeDriver" : "C:\\Users\\Anton\\OneDrive\\Estudos\\python\\chromedriver_win32\\chromedriver"
+    },
+    "postgres":{
+        "host":"localhost",
+        "database":"WebScraping",
+        "user":"postgres",
+        "password":"2395678"
+    }   
+}
