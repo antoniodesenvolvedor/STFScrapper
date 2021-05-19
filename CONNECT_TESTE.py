@@ -5,13 +5,14 @@ conn = psycopg2.connect(
     host="localhost",
     database="WebScraping",
     user="postgres",
-    password="2395678")
+    password="labs")
 
 cur = conn.cursor()
 
-sql = 'insert into tbl_partes (detalhe,nome,apagado,datacad,id_linha) values (%s,%s,0 ,now(),1)'
+sql = 'select * from base'
 
-cur.execute(sql, ('antonio','advogado'))
+cur.execute(sql)
+
 
 
 conn.commit()

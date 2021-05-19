@@ -231,7 +231,12 @@ def getDocumentos(soup,urlDocs,processoApenasNumeros):
             response = requests.get(urlDocs + href)
 
             with open(pasta + '/' + nome + numeroDoc + '.' + extensao, 'wb') as f:
-                f.write(response.content)
+                f.write(response.content)#
+            
+            #Dados completos
+
+
+                
 
 
             

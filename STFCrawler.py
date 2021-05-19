@@ -15,29 +15,21 @@ class CrawlerSTF:
         self.db_connection = self.connect_database()
         self.db_status = self.get_status_dictionary()
 
-        self.start_crawling()
+        self.crawler_page = STFCrawlerPage(self.config_data["crawler"])
 
-
-        self.current_lote = self.get_one_pending_lote()
-        # self.set_status_database_current_lote(self.db_status["executing"])
         
-        self.rows_current_lote = self.get_rows_current_lote()
+        self.start_crawling()
+        # crawler_page.set_soup_from_current_process_number()
 
-        crawler_page = STFCrawlerPage(self.config_data["crawler"])
+        # row_id = self.rows_current_lote[0]["id_linha"]
+        # row_partes = crawler_page.get_partes_from_current_soup()
+        # row_decisoes = crawler_page.get_decisoes_from_current_soup()
+        # row_andamentos = crawler_page.get_andamentos_from_current_soup()
+        # crawler_page.save_documents_from_current_soup_on_disk()
 
-        crawler_page.set_current_process_number(self.rows_current_lote[0]["processo"])
-
-        crawler_page.set_soup_from_current_process_number()
-
-        row_id = self.rows_current_lote[0]["id_linha"]
-        row_partes = crawler_page.get_partes_from_current_soup()
-        row_decisoes = crawler_page.get_decisoes_from_current_soup()
-        row_andamentos = crawler_page.get_andamentos_from_current_soup()
-        crawler_page.save_documents_from_current_soup_on_disk()
-
-        self.save_partes_database(row_partes,row_id)
-        self.save_decisoes_database(row_decisoes,row_id)
-        self.save_andamentos_database(row_andamentos,row_id)
+        # self.save_partes_database(row_partes,row_id)
+        # self.save_decisoes_database(row_decisoes,row_id)
+        # self.save_andamentos_database(row_andamentos,row_id)
      
 
        
@@ -75,9 +67,7 @@ class CrawlerSTF:
 
         return db_status
     
-   
-    
-        
+       
     def save_error_db(self,error_message):
         sql_command = 'INSERT INTO tbl_log_erros (datacad, texto) values (now(),%s)'
 
@@ -90,17 +80,12 @@ class CrawlerSTF:
         db_cursor = self.db_connection.cursor()
         sql = '''
             select 
-                id_lote, 
-                nome_lote, 
-                status, 
-                data_cad, 
-                data_fim, 
-                user_cad 
+                id_lote
             from 
                 processostf_lote
             where
                 apagado = 0
-                and status = 12
+                and status = 1
             order by data_cad 
             limit(1)       
         '''
@@ -108,24 +93,25 @@ class CrawlerSTF:
         db_cursor.execute(sql)
         processo_lote = db_cursor.fetchone()
 
-        return processo_lote
+        if(processo_lote):
+            return processo_lote[0]
         
 
     def start_current_lote_database(self):
         db_cursor = self.db_connection.cursor()
-        sql_command = 'update processostf_lote set status = %s, data_fim = now() where id_lote = %s'
+        sql_command = 'update processostf_lote set status = 4, data_inicio_processamento = now() where id_lote = %s'
             
-        db_cursor.execute(sql_command, (status,self.current_lote))
+        db_cursor.execute(sql_command, (self.current_lote,))
         self.db_connection.commit()
 
-    def set_status_database_current_row(self,status):
+    def finish_current_lote_database(self):
         db_cursor = self.db_connection.cursor()
-        sql_command = 'update processostf_lote set status = %s, data_fim = now() where id_lote = %s'
+        sql_command = 'update processostf_lote set status = 2, data_fim = now() where id_lote = %s'
             
-        db_cursor.execute(sql_command, (status,self.current_lote))
+        db_cursor.execute(sql_command, (self.current_lote,))
         self.db_connection.commit()
 
-    
+
     def get_rows_current_lote(self):
         rows_current_lote = []
 
@@ -181,9 +167,9 @@ class CrawlerSTF:
     
     def search_pending_lote_until_find_one(self):
         lote = self.get_one_pending_lote()
+        sleep_time = 15
 
         while(lote is None):
-            sleep_time = 15
             print('Não há lotes pendentes procurando novamente em {} segundos'.format(sleep_time))
             time.sleep(sleep_time)
             lote = self.get_one_pending_lote()
@@ -191,36 +177,8 @@ class CrawlerSTF:
         return lote
 
 
-    def crawling_rows(self):
-
-        crawler_page = STFCrawlerPage(self.config_data["crawler"])
-
-        for row in self.rows_current_lote:
-            
-            row_id = row["id_linha"]
-
-            db_cursor = self.db_connection.cursor()
-            sql_command = 'update processostf_lote_linha set status = %s, data_inicio_processamento = now() where id_linha = %s'   
-            db_cursor.execute(sql_command, (self.db_status['executing'],row_id))
-            conn.commit()
-
-            crawler_page.set_current_process_number(row["processo"])
-            crawler_page.set_soup_from_current_process_number()
-
-      
-            row_partes = crawler_page.get_partes_from_current_soup()
-            row_decisoes = crawler_page.get_decisoes_from_current_soup()
-            row_andamentos = crawler_page.get_andamentos_from_current_soup()
-
-            self.save_partes_database(row_partes,row_id)
-            self.save_decisoes_database(row_decisoes,row_id)
-            self.save_andamentos_database(row_andamentos,row_id)
-            crawler_page.save_documents_from_current_soup_on_disk()
-
-            db_cursor = self.db_connection.cursor()
-            sql_command = 'update processostf_lote_linha set status = %s, data_fim = now() where id_linha = %s'   
-            db_cursor.execute(sql_command, (self.db_status['finished'],row_id))
-            conn.commit()
+ 
+          
 
 
 
@@ -230,45 +188,58 @@ class CrawlerSTF:
         while(True):
             lote = self.search_pending_lote_until_find_one()
             self.current_lote = lote      
-            self.set_status_database_current_lote(self.db_status['executing'])
+            self.start_current_lote_database()
 
             self.rows_current_lote = self.get_rows_current_lote()
+
+            for row in self.rows_current_lote:
+
+                self.crawler_page.set_current_process_number(row["processo"])
+
+                row_id = row["id_linha"]
+
+                self.start_current_row_database(row_id)
+
+                self.crawler_page.set_current_process_number(row["processo"])
+                self.crawler_page.set_soup_from_current_process_number()
+
+        
+                row_partes = self.crawler_page.get_partes_from_current_soup()
+                row_decisoes = self.crawler_page.get_decisoes_from_current_soup()
+                row_andamentos = self.crawler_page.get_andamentos_from_current_soup()
+
+                self.save_partes_database(row_partes,row_id)
+                self.save_decisoes_database(row_decisoes,row_id)
+                self.save_andamentos_database(row_andamentos,row_id)
+                self.crawler_page.save_documents_from_current_soup_on_disk()
+
+                self.finish_current_row_database(row_id)
+
+            self.finish_current_lote_database()
+            
 
             
 
 
 
-     
+
+    def start_current_row_database(self, row_id):
+        db_cursor = self.db_connection.cursor()
+        sql_command = 'update processostf_lote_linha set status = 4, data_inicio_processamento = now() where id_linha = %s'
+            
+        db_cursor.execute(sql_command, (row_id,))
+        self.db_connection.commit()
+
+    def finish_current_row_database(self, row_id):
+        db_cursor = self.db_connection.cursor()
+        sql_command = 'update processostf_lote_linha set status = 2, data_fim = now() where id_linha = %s'
+            
+        db_cursor.execute(sql_command, (row_id,))
+        self.db_connection.commit()
 
 
 
-    def start_crawling_rows_current_lote(self):
-        sql = 'update processostf_lote_linha set status = %s, data_inicio_processamento = now() where id_linha = %s'
-        cur.execute(sql, (statusCarga['executando'],linha['id_linha']))
-        conn.commit()
 
-        processoApenasNumeros = re.sub(r'[^\d]','',linha['processo'])        
-        
-        urlToSearch = url + processoApenasNumeros
-        soup = getProcessSoup(urlToSearch,chromeDriver,chrome_options)
-    
-        getDocumentos(soup,urlDocs,processoApenasNumeros)
-
-
-        partes = getPartes(soup)
-        savePartesDatabase(partes,linha['id_linha'])
-
-        andamentos = getAndamentos(soup)
-        saveAndamentosDatabase(andamentos,linha['id_linha'])
-
-        decisoes = getDecisoes(soup)
-        saveDecisoesDatabase(decisoes,linha['id_linha'])
-
-
-
-        sql = 'update processostf_lote_linha set status = %s, data_fim = now() where id_linha = %s'
-        cur.execute(sql, (statusCarga['concluido'],linha['id_linha']))
-        conn.commit()
 
 
 
